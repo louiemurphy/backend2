@@ -21,7 +21,7 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 app.use(cors({
-  origin: 'http://localhost:3000', // Update with your frontend URL
+  origin: 'https://navajowhite-mouse-469726.hostingersite.com', // Update with your frontend URL
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
