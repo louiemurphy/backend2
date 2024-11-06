@@ -398,5 +398,7 @@ app.get('/api/teamMembers/:id', async (req, res) => {
 
 // Start the server
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  const host = process.env.NODE_ENV === 'production' ? 'https://backend2-4-ppp6.onrender.com' : `http://localhost:${PORT}`;
+  console.log(`Server running on ${host}`);
 });
+
