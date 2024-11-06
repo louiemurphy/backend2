@@ -21,9 +21,7 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 app.use(cors({
-  origin: [
-    'http://localhost:3000', // Allow requests from localhost // Allow requests from your production URL
-  ],
+  origin: 'https://frontend2-murex-ten.vercel.app/,', // Update with your frontend URL
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
