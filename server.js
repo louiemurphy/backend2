@@ -1,31 +1,44 @@
-  const express = require("express");
-  const cors = require("cors");
-  const mongoose = require("mongoose");
-  const multer = require("multer");
-  const path = require("path");
-  const fs = require("fs");
-  require('dotenv').config(); // Load environment variables from .env file
+const express = require("express");
+const cors = require("cors");
+const mongoose = require("mongoose");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
+require('dotenv').config(); // Load environment variables from .env file
 
-  const app = express();
-  const PORT = process.env.PORT || 5000;
+const app = express();
+const PORT = process.env.PORT || 5000;
 
-  // Connect to MongoDB using the connection string from .env
-  mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log('MongoDB connected'))
-    .catch(err => console.error('MongoDB connection error:', err));
+// Connect to MongoDB using the connection string from .env
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log('MongoDB connected'))
+  .catch(err => console.error('MongoDB connection error:', err));
 
-  // Ensure the uploads directory exists
-  const uploadDir = './uploads';
-  if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir);
-  }
+// Ensure the uploads directory exists
+const uploadDir = './uploads';
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+}
 
-  app.use(cors({
-    origin: ['https://isd-team.vercel.app/', 'http://localhost:3001'], // Removed trailing slash
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true // Add if you need to support cookies or authentication headers
-  }));
+// Correct CORS configuration
+app.use(cors({
+  origin: ['https://isd-team.vercel.app', 'http://localhost:3001'], // Frontend URLs
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'], // Ensure all methods are covered
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true // Enable credentials if needed
+}));
+
+// Middleware to parse JSON request bodies
+app.use(express.json());
+
+// Serve uploaded files statically from the uploads folder
+app.use('/uploads', express.static('uploads'));
+
+// Start the server
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
   
   
 
