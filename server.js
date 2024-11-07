@@ -21,10 +21,12 @@
   }
 
   app.use(cors({
-    origin: ['https://isd-front.vercel.app/', 'http://localhost:3001'], // Add both frontend URLs
+    origin: ['https://isd-front.vercel.app', 'http://localhost:3001'], // Removed trailing slash
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true // Add if you need to support cookies or authentication headers
   }));
+  
   
 
   // Middleware to parse JSON request bodies
