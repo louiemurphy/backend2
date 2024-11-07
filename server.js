@@ -22,7 +22,7 @@ if (!fs.existsSync(uploadDir)) {
 
 // CORS configuration
 app.use(cors({
-  origin: ['https://isd-teams.vercel.app', 'http://localhost:3000'],
+  origin: ['https://isd-team3.vercel.app', 'http://localhost:3000'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
