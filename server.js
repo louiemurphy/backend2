@@ -21,7 +21,7 @@
   }
 
   app.use(cors({
-    origin: ['https://firebrick-beaver-209166.hostingersite.com', 'http://localhost:3001'], // Removed trailing slash
+    origin: ['https://isd-team.vercel.app/', 'http://localhost:3001'], // Removed trailing slash
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true // Add if you need to support cookies or authentication headers
