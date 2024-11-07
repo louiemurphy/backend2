@@ -20,12 +20,20 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir);
 }
 
-// CORS configuration
+// Enhanced CORS configuration
 app.use(cors({
-  origin: ['https://isd-team.vercel.app', 'http://localhost:3001'],
+  origin: function (origin, callback) {
+    const allowedOrigins = ['https://isd-team.vercel.app', 'http://localhost:3001'];
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
+  credentials: true,
+  maxAge: 86400
 }));
 
 // Middleware to parse JSON request bodies
