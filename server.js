@@ -21,7 +21,7 @@
   }
 
   app.use(cors({
-    origin: ['https://frontend2-murex-ten.vercel.app', 'http://localhost:3000'], // Add both frontend URLs
+    origin: ['https://isd-front.vercel.app/', 'http://localhost:3001'], // Add both frontend URLs
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   }));
