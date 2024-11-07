@@ -22,21 +22,10 @@ if (!fs.existsSync(uploadDir)) {
 
 // CORS configuration
 app.use(cors({
-  origin: ['https://isd-team.vercel.app', 'https://isd-front.vercel.app'],
-  credentials: true,
+  origin: ['https://isd-team.vercel.app', 'http://localhost:3001'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: [
-    'X-CSRF-Token',
-    'X-Requested-With',
-    'Accept',
-    'Accept-Version',
-    'Content-Length',
-    'Content-MD5',
-    'Content-Type',
-    'Date',
-    'X-Api-Version',
-    'Authorization'
-  ]
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
 }));
 
 // Middleware to parse JSON request bodies
