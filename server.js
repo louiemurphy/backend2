@@ -119,7 +119,11 @@ app.post("/api/requests", async (req, res) => {
   try {
     const newRequest = req.body;
     const newReferenceNumber = Math.floor(1000 + Math.random() * 9000).toString();
-    const timestamp = new Date().toISOString(); // Store in UTC
+    const timestamp = new Date().toLocaleString("en-PH", {
+      timeZone: "Asia/Manila",
+      hour12: true
+    });
+    
 
     const formattedRequest = {
       referenceNumber: newReferenceNumber,
