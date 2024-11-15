@@ -22,7 +22,7 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 app.use(cors({
-  origin: 'http://localhost:3000/', // Update with your frontend URL
+  origin: 'https://isd-team3.vercel.app', // Update with your frontend URL
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
