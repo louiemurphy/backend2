@@ -5,6 +5,7 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 require('dotenv').config(); // Load environment variables from .env file
+const moment = require('moment-timezone');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -21,7 +22,7 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 app.use(cors({
-  origin: 'https://isd-team3.vercel.app', // Update with your frontend URL
+  origin: 'http://localhost:3000/', // Update with your frontend URL
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
@@ -94,6 +95,79 @@ const teamMemberSchema = new mongoose.Schema({
 
 const TeamMember = mongoose.model('TeamMember', teamMemberSchema);
 
+
+// Define the supplier schema
+const supplierSchema = new mongoose.Schema({
+  email: { type: String, required: true },
+  category: { type: String, required: true },
+  classification: { type: String, required: true },
+  companyName: { type: String, required: true },
+  address: { type: String, required: true },
+  location: { type: String, required: true },
+  account: { type: String, required: true },
+  contactNumber: { type: String, required: true },
+  contactEmail: { type: String, required: true },
+  website: { type: String, default: '' }, // Default value if website is not provided
+  contactPerson: { type: String, required: true }, // New contact person field
+  timestamp: { type: Date, default: Date.now }, // Store timestamp as Date
+});
+
+// Virtual field to format timestamp to the Philippine timezone
+supplierSchema.virtual('formattedTimestamp').get(function() {
+  return moment(this.timestamp).tz('Asia/Manila').format('MM/DD/YYYY, h:mm:ss A');
+});
+
+// Include virtual fields when converting to JSON
+supplierSchema.set('toJSON', { virtuals: true });
+
+// Create and export the Supplier model
+const Supplier = mongoose.model('Supplier', supplierSchema);
+module.exports = Supplier;
+
+// API to get all suppliers
+app.get('/api/suppliers', async (req, res) => {
+  try {
+    const suppliers = await Supplier.find(); // Fetch all suppliers
+    res.json(suppliers); // Send back as JSON
+  } catch (error) {
+    console.error('Error fetching suppliers:', error);
+    res.status(500).json({ message: 'Error fetching suppliers' });
+  }
+});
+
+// API to create a new supplier (POST request)
+app.post('/api/suppliers', async (req, res) => {
+  const { email, category, classification, companyName, address, location, account, contactNumber, contactEmail, website, contactPerson } = req.body;
+
+  try {
+    // Create a new Supplier document
+    const newSupplier = new Supplier({
+      email,
+      category,
+      classification,
+      companyName,
+      address,
+      location,
+      account,
+      contactNumber,
+      contactEmail,
+      website,
+      contactPerson, // Add the contactPerson to the new supplier
+    });
+
+    // Save the new supplier to the database
+    const savedSupplier = await newSupplier.save();
+
+    // Return the newly created supplier
+    res.status(201).json(savedSupplier); // 201 status for created resources
+  } catch (error) {
+    console.error('Error creating supplier:', error);
+    res.status(500).json({ message: 'Error creating supplier' });
+  }
+});
+
+
+
 // API routes
 
 // Root route to check if the API is running
@@ -119,11 +193,7 @@ app.post("/api/requests", async (req, res) => {
   try {
     const newRequest = req.body;
     const newReferenceNumber = Math.floor(1000 + Math.random() * 9000).toString();
-    const timestamp = new Date().toLocaleString("en-PH", {
-      timeZone: "Asia/Manila",
-      hour12: true
-    });
-    
+    const timestamp = new Date().toLocaleString();
 
     const formattedRequest = {
       referenceNumber: newReferenceNumber,
@@ -201,13 +271,21 @@ app.get("/api/teamMembers", async (req, res) => {
   }
 });
 
-// New endpoint to calculate and send task stats for a specific team member
 app.get("/api/teamMembers/stats", async (req, res) => {
-  const { evaluatorId } = req.query; // Get the evaluator ID from the query parameters
+  const { evaluatorId, month, year } = req.query; // Get the evaluatorId, month, and year from query params
 
   try {
-    // Fetch all requests
-    const requests = await Request.find();
+    // Fetch all requests, potentially filtered by month and year
+    let query = {};
+
+    // If month and year are provided, filter requests by date
+    if (month && year) {
+      const startDate = new Date(year, month - 1, 1); // First day of the selected month
+      const endDate = new Date(year, month, 0); // Last day of the selected month
+      query.date = { $gte: startDate, $lte: endDate }; // Filter by date range
+    }
+
+    const requests = await Request.find(query); // Apply date filter if available
 
     // Create a map to hold the task stats for the specified team member
     const memberStats = {};
@@ -221,53 +299,98 @@ app.get("/api/teamMembers/stats", async (req, res) => {
         }
 
         if (!memberStats[assignedMember]) {
-          memberStats[assignedMember] = { openTasks: 0, closedTasks: 0 };
+          memberStats[assignedMember] = {
+            openTasks: 0,
+            closedTasks: 0,
+            canceledTasks: 0,
+            tasks: []  // Initialize tasks array for each member
+          };
         }
 
-        // Increment open or closed tasks based on the request status
+        // Increment open, closed, or canceled tasks based on the request status
         if (request.status === 1) {
           memberStats[assignedMember].openTasks += 1; // Ongoing tasks
         } else if (request.status === 2) {
           memberStats[assignedMember].closedTasks += 1; // Completed tasks
+        } else if (request.status === 3) {
+          memberStats[assignedMember].canceledTasks += 1; // Canceled tasks
         }
+
+        // Add task to the tasks array for this member
+        memberStats[assignedMember].tasks.push(request);
       }
     });
 
-    // Format the response data for the specified evaluator
-    const response = evaluatorId ? [{
-      name: evaluatorId,
-      openTasks: memberStats[evaluatorId]?.openTasks || 0,
-      closedTasks: memberStats[evaluatorId]?.closedTasks || 0,
-      completionRate: memberStats[evaluatorId]?.closedTasks + memberStats[evaluatorId]?.openTasks > 0
-        ? Math.round((memberStats[evaluatorId].closedTasks / (memberStats[evaluatorId].closedTasks + memberStats[evaluatorId].openTasks)) * 100)
-        : 0,
-    }] : Object.keys(memberStats).map(name => ({
-      name,
-      openTasks: memberStats[name].openTasks,
-      closedTasks: memberStats[name].closedTasks,
-      completionRate: memberStats[name].closedTasks + memberStats[name].openTasks > 0
-        ? Math.round((memberStats[name].closedTasks / (memberStats[name].closedTasks + memberStats[name].openTasks)) * 100)
-        : 0,
-    }));
+    // Helper function to calculate completion rate
+    const calculateCompletionRate = (stats) => {
+      const totalTasks = stats?.openTasks + stats?.closedTasks + stats?.canceledTasks;
+      return totalTasks > 0 ? Math.round((stats?.closedTasks / totalTasks) * 100) : 0;
+    };
 
-    // If no stats found for the specific evaluator, ensure we send a response with 0 tasks
+    // Helper function to calculate efficiency rate
+    const calculateEfficiencyRate = (tasks) => {
+      if (!tasks || tasks.length === 0) return '0.00'; // Return '0.00' if no tasks are present
+
+      const total = tasks.length; // Total number of tasks
+
+      // Filter tasks where dateCompleted is not null and is on time (i.e., completed before or on dateNeeded)
+      const timelyClosedTasks = tasks.filter(task => {
+        const dateNeeded = task?.dateNeeded ? new Date(task.dateNeeded) : null;
+        const dateCompleted = task?.dateCompleted ? new Date(task.dateCompleted) : null;
+
+        return dateNeeded && dateCompleted && dateCompleted <= dateNeeded;
+      }).length;
+
+      // If there are no tasks to calculate, return '0.00'
+      if (total === 0) return '0.00';
+
+      // Calculate the efficiency rate and return it as a fixed decimal value
+      const efficiencyRate = ((timelyClosedTasks / total) * 100).toFixed(2);
+      return efficiencyRate;
+    };
+
+    // Prepare response based on evaluatorId filter
+    const response = evaluatorId
+      ? // If evaluatorId is provided, return stats for that evaluator
+        [{
+          name: evaluatorId,
+          openTasks: memberStats[evaluatorId]?.openTasks || 0,
+          closedTasks: memberStats[evaluatorId]?.closedTasks || 0,
+          canceledTasks: memberStats[evaluatorId]?.canceledTasks || 0,
+          tasks: memberStats[evaluatorId]?.tasks || [],
+          completionRate: calculateCompletionRate(memberStats[evaluatorId]),
+          efficiencyRate: calculateEfficiencyRate(memberStats[evaluatorId]?.tasks || []),
+        }]
+      : // If no evaluatorId is provided, return stats for all evaluators
+        Object.keys(memberStats).map(name => ({
+          name,
+          openTasks: memberStats[name]?.openTasks || 0,
+          closedTasks: memberStats[name]?.closedTasks || 0,
+          canceledTasks: memberStats[name]?.canceledTasks || 0,
+          tasks: memberStats[name]?.tasks || [],
+          completionRate: calculateCompletionRate(memberStats[name]),
+          efficiencyRate: calculateEfficiencyRate(memberStats[name]?.tasks || []),
+        }));
+
+    // If no stats are found for the specific evaluator, return default response
     if (evaluatorId && !memberStats[evaluatorId]) {
       return res.json([{
         name: evaluatorId,
         openTasks: 0,
         closedTasks: 0,
+        canceledTasks: 0,
         completionRate: 0,
+        efficiencyRate: 0,
       }]);
     }
 
+    // Return the response with stats
     res.json(response);
   } catch (error) {
     console.error("Error fetching team member stats:", error);
     res.status(500).json({ message: "Error fetching team member stats" });
   }
 });
-
-
 
 
 
