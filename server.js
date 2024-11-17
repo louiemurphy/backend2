@@ -22,7 +22,7 @@
   }
 
   app.use(cors({
-    origin: 'https://frontend2-isd.vercel.app', // Update with your frontend URL
+    origin: 'https://frontend-isd2.vercel.app', // Update with your frontend URL
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   }));
