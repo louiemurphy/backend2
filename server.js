@@ -188,19 +188,19 @@
     }
   });
 
-  // POST a new request
   app.post("/api/requests", async (req, res) => {
     try {
       const newRequest = req.body;
       const newReferenceNumber = Math.floor(1000 + Math.random() * 9000).toString();
       const timestamp = new Date().toLocaleString();
-
+  
       const formattedRequest = {
         referenceNumber: newReferenceNumber,
         timestamp,
+        formattedTimestamp: moment(timestamp).tz('Asia/Manila').format('MM/DD/YYYY, h:mm:ss A'), // Add formatted timestamp here
         ...newRequest,
       };
-
+  
       const request = new Request(formattedRequest);
       await request.save();
       res.status(201).json(request);
@@ -209,6 +209,7 @@
       res.status(500).json({ message: "Error creating request" });
     }
   });
+  
 
   // PUT request to update an existing request
   app.put("/api/requests/:id", async (req, res) => {
