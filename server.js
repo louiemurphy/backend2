@@ -22,7 +22,7 @@
   }
 
   app.use(cors({
-    origin: 'https://frontend2-isd.vercel.app', // Update with your frontend URL
+    origin: 'https://frontend-isd2.vercel.app', // Update with your frontend URL
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   }));
@@ -187,27 +187,40 @@
     }
   });
 
-  // POST a new request
   app.post("/api/requests", async (req, res) => {
     try {
       const newRequest = req.body;
+      
+      // Generate a random 4-digit reference number
       const newReferenceNumber = Math.floor(1000 + Math.random() * 9000).toString();
-      const timestamp = new Date().toLocaleString();
-
+      
+      // Get the current UTC timestamp
+      const utcTimestamp = new Date().toISOString(); // Use ISO format for consistent time representation
+      
+      // Format timestamp using moment to Manila time
+      const formattedTimestamp = moment(utcTimestamp).tz('Asia/Manila').format('MM/DD/YYYY, h:mm:ss A');
+  
+      // Prepare the formatted request object
       const formattedRequest = {
         referenceNumber: newReferenceNumber,
-        timestamp,
-        ...newRequest,
+        timestamp: utcTimestamp, // Store the raw UTC timestamp
+        formattedTimestamp, // Store the formatted timestamp in Manila timezone
+        ...newRequest, // Spread other request fields
       };
-
+  
+      // Save the request to the database
       const request = new Request(formattedRequest);
       await request.save();
+      
+      // Send a successful response with the saved request
       res.status(201).json(request);
     } catch (error) {
       console.error("Error creating request:", error);
       res.status(500).json({ message: "Error creating request" });
     }
   });
+  
+  
 
   // PUT request to update an existing request
   app.put("/api/requests/:id", async (req, res) => {
