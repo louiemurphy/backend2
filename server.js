@@ -95,7 +95,6 @@
 
   const TeamMember = mongoose.model('TeamMember', teamMemberSchema);
 
-
   // Define the supplier schema
   const supplierSchema = new mongoose.Schema({
     email: { type: String, required: true },
@@ -521,6 +520,7 @@
     }
   });
 
+  
 
 
   // Start the server
