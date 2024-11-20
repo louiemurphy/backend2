@@ -22,7 +22,7 @@
   }
 
   app.use(cors({
-    origin: 'http://localhost:3000', // Update to allow requests from localhost during development
+    origin: 'http://193.203.162.228', // Update to allow requests from localhost during development
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   }));
