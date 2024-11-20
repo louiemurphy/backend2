@@ -23,9 +23,9 @@
 
 
   app.use(cors({
-    origin: 'https://193.203.162.228',  // Allow your frontend IP
+    origin: ['http://193.203.162.228', 'https://193.203.162.228'],  // Allow both HTTP and HTTPS frontend IP
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    credentials: true
+    credentials: true,
   }));
   
 
@@ -538,7 +538,8 @@
   
 
 
-  app.listen(5000, '0.0.0.0', () => {
-    console.log('Server running on http://0.0.0.0:5000');
-  });
+  app.listen(PORT, HOST, () => {
+    console.log(`Server running on http://${HOST}:${PORT}`);
+});
+  
   
