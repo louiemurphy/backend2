@@ -22,10 +22,11 @@
   }
 
   app.use(cors({
-    origin: 'https://frontend-isd2.vercel.app', // Update with your frontend URL
+    origin: 'http://localhost:3000', // Update to allow requests from localhost during development
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   }));
+  
 
   // Middleware to parse JSON request bodies
   app.use(express.json());
