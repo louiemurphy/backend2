@@ -23,7 +23,7 @@
 
 
   app.use(cors({
-    origin: 'http://193.203.162.228',  // Allow your frontend IP
+    origin: 'https://193.203.162.228',  // Allow your frontend IP
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true
   }));
