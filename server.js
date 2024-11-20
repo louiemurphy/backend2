@@ -21,10 +21,11 @@
     fs.mkdirSync(uploadDir);
   }
 
+
   app.use(cors({
-    origin: 'http://193.203.162.228', // Update to allow requests from localhost during development
+    origin: 'http://193.203.162.228',  // Allow your frontend IP
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
   }));
   
 
@@ -537,7 +538,7 @@
   
 
 
-  // Start the server
-  app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  app.listen(5000, '0.0.0.0', () => {
+    console.log('Server running on http://0.0.0.0:5000');
   });
+  
