@@ -25,14 +25,16 @@
 
   app.use(cors({
     origin: ['http://193.203.162.228', 'https://193.203.162.228'],  // Allow both HTTP and HTTPS frontend IP
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
   }));
   
+  app.options('*', cors());
 
   // Middleware to parse JSON request bodies
   app.use(express.json());
-
+  app.use(express.urlencoded({ extended: true }));
   // Serve uploaded files statically from the uploads folder
   app.use('/uploads', express.static('uploads'));
 
@@ -61,7 +63,6 @@
     }
   });
 
-  // Define a Mongoose schema and model for requests
   const requestSchema = new mongoose.Schema({
     referenceNumber: { type: String, required: true },
     timestamp: { type: String, required: true },
@@ -75,17 +76,125 @@
     requestType: String,
     dateNeeded: String,
     specialInstructions: String,
-    assignedTo: String,  // Add this to store the assigned team member
-    status: { type: Number, default: 0 }, // Default to Pending
-    fileUrl: String,  // URL to the evaluator's uploaded file
-    fileName: String, // Original evaluator file name
-    requesterFileUrl: String,  // URL to the requester's uploaded file
-    requesterFileName: String,  // Original requester file name
-    completedAt: Date, // Field to store the date when the request is marked as completed
-    canceledAt: Date, // New field to store the date when the request is marked as canceled
-    cancellationReason: String, // Optional: Reason for request cancellation
+    assignedTo: String,
+    status: { 
+      type: Number, 
+      default: 0,
+      enum: [0, 1, 2, 3] // 0: Pending, 1: Ongoing, 2: Completed, 3: Canceled
+    },
+    fileUrl: String,
+    fileName: String,
+    requesterFileUrl: String,
+    requesterFileName: String,
+    completedAt: Date,
+    canceledAt: Date,
+    cancellationReason: String,
+    
+remarks: {
+  type: String,
+  trim: true,
+  default: ''
+},
+lastUpdated: {
+  type: Date,
+  default: Date.now
+},
+    detailedStatus: { 
+      type: String, 
+      default: 'on-going', // Set a default value
+      enum: [
+        'done-system-sizing',
+        'cancelled-survey-request-denied',
+        'cancelled-not-our-expertise',
+        'done-no-go-supplier-acquisition',
+        'done-request-approved',
+        'cancelled-double-entry',
+        'cancelled-requester-cancelled',
+        'done-quotation-submitted',
+        'done-technical-docs-turnover',
+        'done-suggest-buy-bid-docs',
+        'done-proposal-approved',
+        'done-proposal-disapproved',
+        'done-survey-request-approved',
+        'done-unable-evaluate-late-request',
+        'done-unable-evaluate-multiple-requests',
+        'done-unable-evaluate-insufficient-data',
+        'done-go-proceed-bidding',
+        'done-no-go-bidding-team-directives',
+        'done-no-go-certificate',
+        'done-no-go-specifications',
+        'done-no-go-short-lead-time',
+        'done-no-go-breakeven',
+        'done-no-go-profitability',
+        'done-no-go-negative-profit',
+        'on-going',
+        'done-go-suggest-negotiate'
+      ]
+    },
+    // Add status history to track changes
+    statusHistory: [{
+      status: String,
+      changedAt: { type: Date, default: Date.now },
+      changedBy: String // Optional: to track who made the change
+    }],
+    lastUpdated: { 
+      type: Date, 
+      default: Date.now,
+      required: true // Make this required
+    }
+  }, { 
+    timestamps: true,
+    // Add middleware to handle status updates
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   });
-
+  
+  // Add pre-save middleware to update lastUpdated and add to status history
+  requestSchema.pre('save', function(next) {
+    // Update lastUpdated timestamp
+    this.lastUpdated = new Date();
+    
+    // If detailedStatus changed, add to history
+    if (this.isModified('detailedStatus')) {
+      if (!this.statusHistory) {
+        this.statusHistory = [];
+      }
+      
+      this.statusHistory.push({
+        status: this.detailedStatus,
+        changedAt: new Date(),
+        changedBy: this.assignedTo // Or whatever field you use to track the user
+      });
+    }
+    
+    next();
+  });
+  
+  // Add methods to help with status management
+  requestSchema.methods.updateDetailedStatus = async function(newStatus, updatedBy) {
+    this.detailedStatus = newStatus;
+    this.lastUpdated = new Date();
+    
+    // Add to status history
+    this.statusHistory.push({
+      status: newStatus,
+      changedAt: new Date(),
+      changedBy: updatedBy
+    });
+    
+    return this.save();
+  };
+  
+  // Static method to find requests by status
+  requestSchema.statics.findByDetailedStatus = function(status) {
+    return this.find({ detailedStatus: status });
+  };
+  
+  // Virtual for formatted lastUpdated date
+  requestSchema.virtual('formattedLastUpdated').get(function() {
+    return this.lastUpdated ? moment(this.lastUpdated).format('MM/DD/YYYY, h:mm:ss A') : null;
+  });
+  
   const Request = mongoose.model('Request', requestSchema);
 
   const teamMemberSchema = new mongoose.Schema({
@@ -176,6 +285,71 @@
   app.get("/api", (req, res) => {
     res.json({ message: "API is running" });
   });
+
+app.put('/api/requests/:id/updateDetailedStatus', async (req, res) => {
+  try {
+    const { detailedStatus, statusRemarks, timestamp } = req.body;
+    const request = await Request.findById(req.params.id);
+    
+    if (!request) {
+      return res.status(404).json({ message: 'Request not found' });
+    }
+
+    // Add new status to history
+    request.statusHistory.push({
+      detailedStatus,
+      remarks: statusRemarks,
+      timestamp: new Date(timestamp)
+    });
+
+    // Update current status
+    request.detailedStatus = detailedStatus;
+    
+    await request.save();
+    res.json(request);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+
+app.put('/api/requests/:id/updateRemarks', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { remarks } = req.body;
+
+    // Validate input
+    if (remarks === undefined) {
+      return res.status(400).json({ message: 'Remarks are required' });
+    }
+
+    // Find and update the request
+    const updatedRequest = await Request.findByIdAndUpdate(
+      id,
+      { 
+        remarks: remarks.trim(), 
+        lastUpdated: new Date() 
+      },
+      {
+        new: true,
+        runValidators: true
+      }
+    );
+
+    if (!updatedRequest) {
+      return res.status(404).json({ message: 'Request not found' });
+    }
+
+    res.json(updatedRequest);
+
+  } catch (error) {
+    console.error('Error updating remarks:', error);
+    res.status(500).json({ message: 'Server error updating remarks' });
+  }
+});
+
+
+
 
   // GET all requests or filter by assignedTo
   app.get("/api/requests", async (req, res) => {
@@ -542,5 +716,3 @@
   app.listen(PORT, HOST, () => {
     console.log(`Server running on http://${HOST}:${PORT}`);
 });
-  
-  
