@@ -24,7 +24,7 @@
 
 
   app.use(cors({
-    origin: ['http://193.203.162.228', 'https://193.203.162.228'],  // Allow both HTTP and HTTPS frontend IP
+    origin: ['http://localhost:3000', 'http://193.203.162.228'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
@@ -710,7 +710,83 @@ app.put('/api/requests/:id/updateRemarks', async (req, res) => {
     }
   });
 
-  
+
+// Define the PI Monitoring Model
+const piMonitoringSchema = new mongoose.Schema({
+  supplierInfo: { type: String, required: true },
+  department: { type: String, required: true },
+  projectName: { type: String },
+  productDescription: { type: String },
+  ntp: { type: String },
+  cd: { type: String },
+  pi: { type: String },
+  invoiceNumber: { type: String, required: true },
+  productionLeadtime: { type: String },
+  totalAmount: { type: Number, required: true },
+  amount: { type: Number, required: true },
+  bank: { type: String, required: true },
+  bankSlip: { type: String, required: true },
+  acknowledgmentSupplier: { type: String, required: true },
+  balanceAmount: { type: Number, required: true },
+  balanceBank: { type: String, required: true },
+  balanceBankSlip: { type: String, required: true },
+  balanceAcknowledgmentSupplier: { type: String, required: true },
+  loadingDate: { type: Date },
+  containerType: { type: String },
+  blNumber: { type: String },
+  departureDate: { type: Date },
+  arrivalDate: { type: Date },
+  deliveryDate: { type: Date },
+  photosUnloading: { type: String },
+}, { timestamps: true }); // Added timestamps for createdAt and updatedAt
+
+// Create the model
+const PiMonitoring = mongoose.model('PiMonitoring', piMonitoringSchema);
+
+app.post('/api/pi-monitoring', async (req, res) => {
+  console.log('Received request to /api/pi-monitoring');
+  console.log('Request body:', req.body);
+  console.log('Request method:', req.method);
+  console.log('Request headers:', req.headers);
+  try {
+    const newPi = new PiMonitoring(req.body);
+    const savedPi = await newPi.save();
+
+    res.status(201).json({ 
+      message: 'PI Monitoring data saved successfully', 
+      data: savedPi 
+    });
+  } catch (error) {
+    console.error('Error saving PI Monitoring data:', error);
+    
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ 
+        message: 'Validation Error', 
+        errors: error.errors 
+      });
+    }
+
+    res.status(500).json({ 
+      message: 'Internal Server Error', 
+      error: error.message 
+    });
+  }
+});
+
+// GET route to retrieve all PI Monitoring entries
+app.get('/api/pi-monitoring', async (req, res) => {
+  try {
+    const piEntries = await PiMonitoring.find().sort({ createdAt: -1 });
+    res.json(piEntries);
+  } catch (error) {
+    console.error('Error fetching PI Monitoring entries:', error);
+    res.status(500).json({ 
+      message: 'Error retrieving PI Monitoring entries', 
+      error: error.message 
+    });
+  }
+});
+
 
 
   app.listen(PORT, HOST, () => {
