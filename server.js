@@ -77,6 +77,7 @@
     dateNeeded: String,
     specialInstructions: String,
     assignedTo: String,
+    referenceNumber: String,
     status: { 
       type: Number, 
       default: 0,
@@ -101,8 +102,9 @@ lastUpdated: {
 },
     detailedStatus: { 
       type: String, 
-      default: 'on-going', // Set a default value
+      default: 'pending', // Set a default value
       enum: [
+        'pending',
         'done-system-sizing',
         'cancelled-survey-request-denied',
         'cancelled-not-our-expertise',
@@ -127,7 +129,7 @@ lastUpdated: {
         'done-no-go-breakeven',
         'done-no-go-profitability',
         'done-no-go-negative-profit',
-        'on-going',
+        'ongoing',
         'done-go-suggest-negotiate'
       ]
     },
@@ -142,12 +144,17 @@ lastUpdated: {
       default: Date.now,
       required: true // Make this required
     }
+    
   }, { 
     timestamps: true,
     // Add middleware to handle status updates
     toJSON: { virtuals: true },
     toObject: { virtuals: true }
   });
+
+  
+
+  
   
   // Add pre-save middleware to update lastUpdated and add to status history
   requestSchema.pre('save', function(next) {
@@ -711,26 +718,25 @@ app.put('/api/requests/:id/updateRemarks', async (req, res) => {
   });
 
 
-// Define the PI Monitoring Model
+// Define the PI Monitoring Schema
 const piMonitoringSchema = new mongoose.Schema({
-  supplierInfo: { type: String, required: true },
-  department: { type: String, required: true },
+  supplierInfo: { type: String }, // Remove required: true
+  department: { type: String }, // Remove required: true
   projectName: { type: String },
   productDescription: { type: String },
   ntp: { type: String },
   cd: { type: String },
   pi: { type: String },
-  invoiceNumber: { type: String, required: true },
-  productionLeadtime: { type: String },
-  totalAmount: { type: Number, required: true },
-  amount: { type: Number, required: true },
-  bank: { type: String, required: true },
-  bankSlip: { type: String, required: true },
-  acknowledgmentSupplier: { type: String, required: true },
-  balanceAmount: { type: Number, required: true },
-  balanceBank: { type: String, required: true },
-  balanceBankSlip: { type: String, required: true },
-  balanceAcknowledgmentSupplier: { type: String, required: true },
+  invoiceNumber: { type: String }, // Remove required: true
+  totalAmount: { type: Number }, // Remove required: true
+  amount: { type: Number }, // Remove required: true
+  bank: { type: String }, // Remove required: true
+  bankSlip: { type: String }, 
+  acknowledgmentSupplier: { type: String },
+  balanceAmount: { type: Number},
+  balanceBank: { type: String},
+  balanceBankSlip: { type: String },
+  balanceAcknowledgmentSupplier: { type: String },
   loadingDate: { type: Date },
   containerType: { type: String },
   blNumber: { type: String },
@@ -738,18 +744,47 @@ const piMonitoringSchema = new mongoose.Schema({
   arrivalDate: { type: Date },
   deliveryDate: { type: Date },
   photosUnloading: { type: String },
-}, { timestamps: true }); // Added timestamps for createdAt and updatedAt
+}, { timestamps: true });
 
 // Create the model
 const PiMonitoring = mongoose.model('PiMonitoring', piMonitoringSchema);
 
-app.post('/api/pi-monitoring', async (req, res) => {
-  console.log('Received request to /api/pi-monitoring');
-  console.log('Request body:', req.body);
-  console.log('Request method:', req.method);
-  console.log('Request headers:', req.headers);
+// CREATE: Add new PI Monitoring entry
+app.post('/api/pi-monitoring', upload.fields([
+  { name: 'bankSlip', maxCount: 1 },
+  { name: 'acknowledgmentSupplier', maxCount: 1 },
+  { name: 'balanceBankSlip', maxCount: 1 },
+  { name: 'balanceAcknowledgmentSupplier', maxCount: 1 },
+  { name: 'photosUnloading', maxCount: 1 }
+]), async (req, res) => {
   try {
-    const newPi = new PiMonitoring(req.body);
+    // Construct the data object, including file paths
+    const newPiData = {
+      ...req.body,
+      bankSlip: req.files['bankSlip'] ? req.files['bankSlip'][0].path : null,
+      acknowledgmentSupplier: req.files['acknowledgmentSupplier'] ? req.files['acknowledgmentSupplier'][0].path : null,
+      balanceBankSlip: req.files['balanceBankSlip'] ? req.files['balanceBankSlip'][0].path : null,
+      balanceAcknowledgmentSupplier: req.files['balanceAcknowledgmentSupplier'] ? req.files['balanceAcknowledgmentSupplier'][0].path : null,
+      photosUnloading: req.files['photosUnloading'] ? req.files['photosUnloading'][0].path : null
+    };
+
+    // Convert numeric fields 
+    const numericFields = ['totalAmount', 'amount', 'balanceAmount'];
+    numericFields.forEach(field => {
+      if (newPiData[field]) {
+        newPiData[field] = parseFloat(newPiData[field]);
+      }
+    });
+
+    // Convert date fields
+    const dateFields = ['loadingDate', 'departureDate', 'arrivalDate', 'deliveryDate'];
+    dateFields.forEach(field => {
+      if (newPiData[field]) {
+        newPiData[field] = new Date(newPiData[field]);
+      }
+    });
+
+    const newPi = new PiMonitoring(newPiData);
     const savedPi = await newPi.save();
 
     res.status(201).json({ 
@@ -773,7 +808,7 @@ app.post('/api/pi-monitoring', async (req, res) => {
   }
 });
 
-// GET route to retrieve all PI Monitoring entries
+// READ: Get all PI Monitoring entries
 app.get('/api/pi-monitoring', async (req, res) => {
   try {
     const piEntries = await PiMonitoring.find().sort({ createdAt: -1 });
@@ -787,6 +822,177 @@ app.get('/api/pi-monitoring', async (req, res) => {
   }
 });
 
+// UPDATE: Modify an existing PI Monitoring entry
+app.put('/api/pi-monitoring/:id', upload.fields([
+  { name: 'bankSlip', maxCount: 1 },
+  { name: 'acknowledgmentSupplier', maxCount: 1 },
+  { name: 'balanceBankSlip', maxCount: 1 },
+  { name: 'balanceAcknowledgmentSupplier', maxCount: 1 },
+  { name: 'photosUnloading', maxCount: 1 }
+]), async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Prepare update data
+    const updateData = { ...req.body };
+
+    // Handle file uploads
+    const fileFields = [
+      'bankSlip', 
+      'acknowledgmentSupplier', 
+      'balanceBankSlip', 
+      'balanceAcknowledgmentSupplier', 
+      'photosUnloading'
+    ];
+
+    fileFields.forEach(field => {
+      if (req.files && req.files[field]) {
+        updateData[field] = req.files[field][0].path;
+      }
+    });
+
+    // Remove fields that shouldn't be updated
+    delete updateData._id;
+    delete updateData.createdAt;
+    delete updateData.updatedAt;
+
+    // Convert numeric fields
+    const numericFields = ['totalAmount', 'amount', 'balanceAmount'];
+    numericFields.forEach(field => {
+      if (updateData[field]) {
+        updateData[field] = parseFloat(updateData[field]);
+      }
+    });
+
+    // Convert date fields
+    const dateFields = ['loadingDate', 'departureDate', 'arrivalDate', 'deliveryDate'];
+    dateFields.forEach(field => {
+      if (updateData[field]) {
+        updateData[field] = new Date(updateData[field]);
+      }
+    });
+
+    // Find and update the entry
+    const updatedEntry = await PiMonitoring.findByIdAndUpdate(
+      id, 
+      updateData, 
+      { 
+        new: true, 
+        runValidators: true,
+        timestamps: true // Ensure timestamps are updated
+      }
+    );
+
+    if (!updatedEntry) {
+      return res.status(404).json({ 
+        message: 'PI Monitoring entry not found' 
+      });
+    }
+
+    res.json({
+      message: 'PI Monitoring entry updated successfully',
+      data: updatedEntry
+    });
+  } catch (error) {
+    console.error('Error updating PI Monitoring entry:', error);
+    res.status(500).json({ 
+      message: 'Error updating PI Monitoring entry', 
+      error: error.message 
+    });
+  }
+});
+
+// DELETE: Remove a PI Monitoring entry
+app.delete('/api/pi-monitoring/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const deletedEntry = await PiMonitoring.findByIdAndDelete(id);
+
+    if (!deletedEntry) {
+      return res.status(404).json({ 
+        message: 'PI Monitoring entry not found' 
+      });
+    }
+
+    res.json({ 
+      message: 'PI Monitoring entry deleted successfully',
+      data: deletedEntry
+    });
+  } catch (error) {
+    console.error('Error deleting PI Monitoring entry:', error);
+    res.status(500).json({ 
+      message: 'Error deleting PI Monitoring entry', 
+      error: error.message 
+    });
+  }
+});
+
+// Serve uploaded files
+app.get('/uploads/:filename', (req, res) => {
+  const { filename } = req.params;
+  res.sendFile(path.join(__dirname, 'uploads', filename));
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({
+    message: 'Something went wrong!',
+    error: err.message
+  });
+});
+
+
+requestSchema.statics.getNextReferenceNumber = async function() {
+  // If no requests exist, start from 1
+  const requestCount = await this.countDocuments();
+  if (requestCount === 0) {
+    return '0001';
+  }
+
+  // Find the last request and increment its reference number
+  const lastRequest = await this.findOne({}, {}, { sort: { 'referenceNumber': -1 } });
+  
+  if (!lastRequest) return '0001';
+  
+  const lastNumber = parseInt(lastRequest.referenceNumber);
+  const nextNumber = lastNumber + 1;
+  
+  return nextNumber.toString().padStart(4, '0');
+};
+
+// When creating a new request
+requestSchema.pre('save', async function(next) {
+  if (!this.referenceNumber) {
+    this.referenceNumber = await this.constructor.getNextReferenceNumber();
+  }
+  next();
+});
+
+
+// In your server.js or routes file
+app.get('/api/requests', async (req, res) => {
+  try {
+    // Fetch all requests
+    const requests = await Request.find({});
+
+    // Check if there are no requests
+    if (requests.length === 0) {
+      // If no requests, reset the reference number to 1
+      await Request.findOneAndUpdate(
+        {}, 
+        { $set: { lastReferenceNumber: 1 } },
+        { upsert: true, new: true }
+      );
+    }
+
+    res.status(200).json(requests);
+  } catch (error) {
+    console.error('Error fetching requests:', error);
+    res.status(500).json({ message: 'Error fetching requests', error: error.message });
+  }
+});
 
 
   app.listen(PORT, HOST, () => {
