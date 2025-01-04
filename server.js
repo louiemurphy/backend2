@@ -587,9 +587,6 @@ app.put('/api/requests/:id/updateRemarks', async (req, res) => {
       res.status(500).json({ message: "Error fetching team member stats" });
     }
   });
-
-
-
   // File upload route for evaluator
   app.post('/api/upload', upload.single('file'), async (req, res) => {
     if (!req.file) {
@@ -716,8 +713,6 @@ app.put('/api/requests/:id/updateRemarks', async (req, res) => {
       res.status(500).json({ message: "Error fetching team member details" });
     }
   });
-
-
 // Define the PI Monitoring Schema
 const piMonitoringSchema = new mongoose.Schema({
   supplierInfo: { type: String }, // Remove required: true
@@ -888,7 +883,6 @@ app.put('/api/pi-monitoring/:id', upload.fields([
         message: 'PI Monitoring entry not found' 
       });
     }
-
     res.json({
       message: 'PI Monitoring entry updated successfully',
       data: updatedEntry
@@ -901,7 +895,6 @@ app.put('/api/pi-monitoring/:id', upload.fields([
     });
   }
 });
-
 // DELETE: Remove a PI Monitoring entry
 app.delete('/api/pi-monitoring/:id', async (req, res) => {
   try {
@@ -927,7 +920,6 @@ app.delete('/api/pi-monitoring/:id', async (req, res) => {
     });
   }
 });
-
 // Serve uploaded files
 app.get('/uploads/:filename', (req, res) => {
   const { filename } = req.params;
@@ -942,15 +934,12 @@ app.use((err, req, res, next) => {
     error: err.message
   });
 });
-
-
 requestSchema.statics.getNextReferenceNumber = async function() {
   // If no requests exist, start from 1
   const requestCount = await this.countDocuments();
   if (requestCount === 0) {
     return '0001';
   }
-
   // Find the last request and increment its reference number
   const lastRequest = await this.findOne({}, {}, { sort: { 'referenceNumber': -1 } });
   
@@ -969,8 +958,6 @@ requestSchema.pre('save', async function(next) {
   }
   next();
 });
-
-
 // In your server.js or routes file
 app.get('/api/requests', async (req, res) => {
   try {
