@@ -6,6 +6,7 @@
   const fs = require("fs");
   require('dotenv').config(); // Load environment variables from .env file
   const moment = require('moment-timezone');
+  
 
   const app = express();
   const PORT = process.env.PORT || 5000;
@@ -24,11 +25,12 @@
 
 
   app.use(cors({
-    origin: ['http://localhost:3000', 'http://193.203.162.228'],
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true,
+    origin: ['http://localhost:3000', 'http://193.203.162.228'], // Allowed origins
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Allowed methods
+    allowedHeaders: ['Content-Type', 'Authorization'], // Allowed headers
+    credentials: true, // Allow credentials
   }));
+  
   
   app.options('*', cors());
 
@@ -50,18 +52,19 @@
 
   const upload = multer({
     storage,
-    limits: { fileSize: 50 * 1024 * 1024 }, // Limit file size to 50MB
+    limits: { fileSize: 50 * 1024 * 1024 }, // Limit to 50MB
     fileFilter: (req, file, cb) => {
       const filetypes = /jpeg|jpg|png|gif|pdf/; // Allowed file types
       const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
       const mimetype = filetypes.test(file.mimetype);
-
+  
       if (mimetype && extname) {
         return cb(null, true);
       }
-      cb(new Error("Error: File type not supported!"), false);
+      cb(new Error("File type not supported!"), false);
     }
   });
+  
 
   const requestSchema = new mongoose.Schema({
     referenceNumber: { type: String, required: true },
@@ -100,39 +103,39 @@ lastUpdated: {
   type: Date,
   default: Date.now
 },
-    detailedStatus: { 
-      type: String, 
-      default: 'pending', // Set a default value
-      enum: [
-        'pending',
-        'done-system-sizing',
-        'cancelled-survey-request-denied',
-        'cancelled-not-our-expertise',
-        'done-no-go-supplier-acquisition',
-        'done-request-approved',
-        'cancelled-double-entry',
-        'cancelled-requester-cancelled',
-        'done-quotation-submitted',
-        'done-technical-docs-turnover',
-        'done-suggest-buy-bid-docs',
-        'done-proposal-approved',
-        'done-proposal-disapproved',
-        'done-survey-request-approved',
-        'done-unable-evaluate-late-request',
-        'done-unable-evaluate-multiple-requests',
-        'done-unable-evaluate-insufficient-data',
-        'done-go-proceed-bidding',
-        'done-no-go-bidding-team-directives',
-        'done-no-go-certificate',
-        'done-no-go-specifications',
-        'done-no-go-short-lead-time',
-        'done-no-go-breakeven',
-        'done-no-go-profitability',
-        'done-no-go-negative-profit',
-        'ongoing',
-        'done-go-suggest-negotiate'
-      ]
-    },
+detailedStatus: {
+  type: String,
+  default: 'pending',
+  enum: [
+    'pending',
+    'ongoing',
+    'done-system-sizing',
+    'cancelled-survey-request-denied',
+    'cancelled-not-our-expertise',
+    'done-no-go-supplier-acquisition',
+    'done-request-approved',
+    'cancelled-double-entry',
+    'cancelled-requester-cancelled',
+    'done-quotation-submitted',
+    'done-technical-docs-turnover',
+    'done-suggest-buy-bid-docs',
+    'done-proposal-approved',
+    'done-proposal-disapproved',
+    'done-survey-request-approved',
+    'done-unable-evaluate-late-request',
+    'done-unable-evaluate-multiple-requests',
+    'done-unable-evaluate-insufficient-data',
+    'done-go-proceed-bidding',
+    'done-no-go-bidding-team-directives',
+    'done-no-go-certificate',
+    'done-no-go-specifications',
+    'done-no-go-short-lead-time',
+    'done-no-go-breakeven',
+    'done-no-go-profitability',
+    'done-no-go-negative-profit',
+    'done-go-suggest-negotiate'
+  ],
+},
     // Add status history to track changes
     statusHistory: [{
       status: String,
@@ -293,31 +296,38 @@ lastUpdated: {
     res.json({ message: "API is running" });
   });
 
-app.put('/api/requests/:id/updateDetailedStatus', async (req, res) => {
-  try {
-    const { detailedStatus, statusRemarks, timestamp } = req.body;
-    const request = await Request.findById(req.params.id);
-    
-    if (!request) {
-      return res.status(404).json({ message: 'Request not found' });
+  app.put('/api/requests/:id/updateDetailedStatus', async (req, res) => {
+    console.log('Incoming detailedStatus:', req.body.detailedStatus);
+    console.log('Type of detailedStatus:', typeof req.body.detailedStatus); // Ensure it's a string
+  
+    try {
+      const { detailedStatus, statusRemarks, timestamp } = req.body;
+      const request = await Request.findById(req.params.id);
+  
+      if (!request) {
+        return res.status(404).json({ message: 'Request not found' });
+      }
+  
+      if (!Request.schema.path('detailedStatus').enumValues.includes(detailedStatus)) {
+        return res.status(400).json({ message: `Invalid detailedStatus: ${detailedStatus}` });
+      }
+  
+      request.statusHistory.push({
+        detailedStatus,
+        remarks: statusRemarks,
+        timestamp: new Date(timestamp),
+      });
+  
+      request.detailedStatus = detailedStatus;
+      await request.save();
+  
+      res.json(request);
+    } catch (error) {
+      console.error('Error in updating detailedStatus:', error);
+      res.status(500).json({ message: error.message });
     }
-
-    // Add new status to history
-    request.statusHistory.push({
-      detailedStatus,
-      remarks: statusRemarks,
-      timestamp: new Date(timestamp)
-    });
-
-    // Update current status
-    request.detailedStatus = detailedStatus;
-    
-    await request.save();
-    res.json(request);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
+  });
+  
 
 
 app.put('/api/requests/:id/updateRemarks', async (req, res) => {
@@ -371,38 +381,163 @@ app.put('/api/requests/:id/updateRemarks', async (req, res) => {
     }
   });
 
+
+  // Static function to get the next reference number
+requestSchema.statics.getNextReferenceNumber = async function () {
+  const requestCount = await this.countDocuments(); // Count the total requests
+  if (requestCount === 0) {
+    return '0001'; // Start from 0001 if no requests exist
+  }
+
+  requestSchema.pre('save', async function (next) {
+    if (!this.referenceNumber) {
+      this.referenceNumber = await this.constructor.getNextReferenceNumber();
+    }
+    next();
+  });
+  
+
+  // Find the last request and increment its reference number
+  const lastRequest = await this.findOne({}, {}, { sort: { referenceNumber: -1 } });
+  if (!lastRequest) return '0001';
+
+  const lastNumber = parseInt(lastRequest.referenceNumber);
+  const nextNumber = lastNumber + 1;
+
+  return nextNumber.toString().padStart(4, '0'); // Ensure the number is 4 digits
+};
+
+
+  const counterSchema = new mongoose.Schema({
+    name: { type: String, required: true, unique: true },
+    seq: { type: Number, default: 0 },
+  });
+  
+  const Counter = mongoose.model("Counter", counterSchema);
+  
+
+  async function getNextSequence(sequenceName) {
+    try {
+      const counter = await Counter.findOneAndUpdate(
+        { name: sequenceName },
+        { $inc: { seq: 1 } }, // Increment sequence by 1
+        { new: true, upsert: true } // Create if it doesn't exist
+      );
+      return counter.seq;
+    } catch (error) {
+      console.error("Error incrementing counter:", error);
+      throw error;
+    }
+  }
+  
+  
+  
+  
   app.post("/api/requests", async (req, res) => {
     try {
-      const newRequest = req.body;
-      
-      // Generate a random 4-digit reference number
-      const newReferenceNumber = Math.floor(1000 + Math.random() * 9000).toString();
-      
-      // Get the current UTC timestamp
-      const utcTimestamp = new Date().toISOString(); // Use ISO format for consistent time representation
-      
-      // Format timestamp using moment to Manila time
-      const formattedTimestamp = moment(utcTimestamp).tz('Asia/Manila').format('MM/DD/YYYY, h:mm:ss A');
+      // Increment the counter and fetch the new sequence number
+      const newRefNumber = await getNextSequence("requestCounter");
+      const formattedRefNumber = String(newRefNumber).padStart(4, "0");
   
-      // Prepare the formatted request object
-      const formattedRequest = {
-        referenceNumber: newReferenceNumber,
-        timestamp: utcTimestamp, // Store the raw UTC timestamp
-        formattedTimestamp, // Store the formatted timestamp in Manila timezone
-        ...newRequest, // Spread other request fields
-      };
+      // Create a new request
+      const newRequest = new Request({
+        ...req.body,
+        referenceNumber: formattedRefNumber,
+        timestamp: new Date().toISOString(),
+      });
   
-      // Save the request to the database
-      const request = new Request(formattedRequest);
-      await request.save();
-      
-      // Send a successful response with the saved request
-      res.status(201).json(request);
+      await newRequest.save();
+  
+      res.status(201).json(newRequest);
     } catch (error) {
       console.error("Error creating request:", error);
       res.status(500).json({ message: "Error creating request" });
     }
   });
+  
+  
+  
+  
+  
+  const initializeCounter = async () => {
+    try {
+      // Check if the counter exists
+      const existingCounter = await Counter.findOne({ name: "requestCounter" });
+      if (!existingCounter) {
+        // Create a new counter if it doesn't exist
+        const newCounter = new Counter({ name: "requestCounter", seq: 0 });
+        await newCounter.save();
+        console.log("Counter initialized.");
+      }
+    } catch (error) {
+      console.error("Error initializing counter:", error);
+    }
+  };
+  
+  
+  // Call the function during server startup
+  initializeCounter();
+  
+  
+  // Call the initializeCounter function
+  initializeCounter();
+  
+  
+  // Call the initializeCounter function
+  initializeCounter();
+  
+  app.delete('/api/requests', async (req, res) => {
+    try {
+      // Delete all requests
+      await Request.deleteMany();
+  
+      // Reset the counter to 0
+      const updatedCounter = await Counter.findOneAndUpdate(
+        { name: 'requestCounter' },
+        { seq: 0 }, // Reset sequence
+        { new: true, upsert: true } // Create if it doesn't exist
+      );
+  
+      console.log('Counter reset:', updatedCounter);
+  
+      res.status(200).json({ message: 'All requests and counter reset successfully' });
+    } catch (error) {
+      console.error('Error deleting requests and resetting counter:', error);
+      res.status(500).json({ error: 'Failed to delete requests or reset counter' });
+    }
+  });
+  
+  app.delete('/api/requests/:id', async (req, res) => {
+    try {
+      const requestId = req.params.id;
+  
+      // Delete the request
+      const deletedRequest = await Request.findByIdAndDelete(requestId);
+      if (!deletedRequest) {
+        return res.status(404).json({ message: 'Request not found' });
+      }
+  
+      // Reassign reference numbers
+      const requests = await Request.find().sort({ timestamp: 1 }); // Sort by creation time
+      for (let i = 0; i < requests.length; i++) {
+        requests[i].referenceNumber = (i + 1).toString().padStart(4, '0'); // Reassign in sequential order
+        await requests[i].save();
+      }
+  
+      res.json({ message: 'Request deleted and reference numbers updated successfully' });
+    } catch (error) {
+      console.error('Error deleting request:', error);
+      res.status(500).json({ message: 'Error deleting request' });
+    }
+  });
+
+  
+
+  
+  
+  
+  
+  
   
   
 
@@ -627,13 +762,12 @@ app.put('/api/requests/:id/updateRemarks', async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
     }
-
+  
     const filePath = `/uploads/${req.file.filename}`;
-
+  
     try {
       const requestId = req.body.requestId;
-
-      // Update the request with file path and file name for requester
+  
       const updatedRequest = await Request.findByIdAndUpdate(
         requestId,
         { 
@@ -642,18 +776,19 @@ app.put('/api/requests/:id/updateRemarks', async (req, res) => {
         },
         { new: true }
       );
-      
+  
       if (!updatedRequest) {
         return res.status(404).json({ message: "Request not found" });
       }
-
+  
+      res.set('Access-Control-Allow-Origin', '*'); // Ensure CORS headers
       res.json(updatedRequest);
     } catch (error) {
       console.error("Error uploading file:", error);
       res.status(500).json({ message: "Error uploading file" });
     }
   });
-
+  
   // File download route
   app.get('/api/download/:filename', (req, res) => {
     const filename = req.params.filename;
@@ -673,6 +808,48 @@ app.put('/api/requests/:id/updateRemarks', async (req, res) => {
     });
   });
 
+ app.post('/api/requests', async (req, res) => {
+  try {
+    // Compute the next reference number dynamically
+    const requestCount = await Request.countDocuments();
+    const newReferenceNumber = (requestCount + 1).toString().padStart(4, '0');
+
+    const newRequest = new Request({
+      ...req.body,
+      referenceNumber: newReferenceNumber,
+      timestamp: new Date().toISOString(),
+    });
+
+    await newRequest.save();
+
+    res.status(201).json(newRequest);
+  } catch (error) {
+    console.error('Error creating request:', error);
+    res.status(500).json({ message: 'Error creating request' });
+  }
+});
+
+
+const recalculateReferenceNumbers = async () => {
+  try {
+    const requests = await Request.find().sort({ timestamp: 1 }); // Sort by creation time
+    for (let i = 0; i < requests.length; i++) {
+      requests[i].referenceNumber = (i + 1).toString().padStart(4, '0');
+      await requests[i].save();
+    }
+    console.log('Reference numbers recalculated successfully.');
+  } catch (error) {
+    console.error('Error recalculating reference numbers:', error);
+  }
+};
+
+// Call this during server startup
+recalculateReferenceNumbers();
+
+
+
+
+  
   // New route to handle profile picture upload
   app.post('/api/uploadProfile', upload.single('profileImage'), async (req, res) => {
     if (!req.file) {
@@ -713,273 +890,7 @@ app.put('/api/requests/:id/updateRemarks', async (req, res) => {
       res.status(500).json({ message: "Error fetching team member details" });
     }
   });
-// Define the PI Monitoring Schema
-const piMonitoringSchema = new mongoose.Schema({
-  supplierInfo: { type: String }, // Remove required: true
-  department: { type: String }, // Remove required: true
-  projectName: { type: String },
-  productDescription: { type: String },
-  ntp: { type: String },
-  cd: { type: String },
-  pi: { type: String },
-  invoiceNumber: { type: String }, // Remove required: true
-  totalAmount: { type: Number }, // Remove required: true
-  amount: { type: Number }, // Remove required: true
-  bank: { type: String }, // Remove required: true
-  bankSlip: { type: String }, 
-  acknowledgmentSupplier: { type: String },
-  balanceAmount: { type: Number},
-  balanceBank: { type: String},
-  balanceBankSlip: { type: String },
-  balanceAcknowledgmentSupplier: { type: String },
-  loadingDate: { type: Date },
-  containerType: { type: String },
-  blNumber: { type: String },
-  departureDate: { type: Date },
-  arrivalDate: { type: Date },
-  deliveryDate: { type: Date },
-  photosUnloading: { type: String },
-}, { timestamps: true });
 
-// Create the model
-const PiMonitoring = mongoose.model('PiMonitoring', piMonitoringSchema);
-
-// CREATE: Add new PI Monitoring entry
-app.post('/api/pi-monitoring', upload.fields([
-  { name: 'bankSlip', maxCount: 1 },
-  { name: 'acknowledgmentSupplier', maxCount: 1 },
-  { name: 'balanceBankSlip', maxCount: 1 },
-  { name: 'balanceAcknowledgmentSupplier', maxCount: 1 },
-  { name: 'photosUnloading', maxCount: 1 }
-]), async (req, res) => {
-  try {
-    // Construct the data object, including file paths
-    const newPiData = {
-      ...req.body,
-      bankSlip: req.files['bankSlip'] ? req.files['bankSlip'][0].path : null,
-      acknowledgmentSupplier: req.files['acknowledgmentSupplier'] ? req.files['acknowledgmentSupplier'][0].path : null,
-      balanceBankSlip: req.files['balanceBankSlip'] ? req.files['balanceBankSlip'][0].path : null,
-      balanceAcknowledgmentSupplier: req.files['balanceAcknowledgmentSupplier'] ? req.files['balanceAcknowledgmentSupplier'][0].path : null,
-      photosUnloading: req.files['photosUnloading'] ? req.files['photosUnloading'][0].path : null
-    };
-
-    // Convert numeric fields 
-    const numericFields = ['totalAmount', 'amount', 'balanceAmount'];
-    numericFields.forEach(field => {
-      if (newPiData[field]) {
-        newPiData[field] = parseFloat(newPiData[field]);
-      }
-    });
-
-    // Convert date fields
-    const dateFields = ['loadingDate', 'departureDate', 'arrivalDate', 'deliveryDate'];
-    dateFields.forEach(field => {
-      if (newPiData[field]) {
-        newPiData[field] = new Date(newPiData[field]);
-      }
-    });
-
-    const newPi = new PiMonitoring(newPiData);
-    const savedPi = await newPi.save();
-
-    res.status(201).json({ 
-      message: 'PI Monitoring data saved successfully', 
-      data: savedPi 
-    });
-  } catch (error) {
-    console.error('Error saving PI Monitoring data:', error);
-    
-    if (error.name === 'ValidationError') {
-      return res.status(400).json({ 
-        message: 'Validation Error', 
-        errors: error.errors 
-      });
-    }
-
-    res.status(500).json({ 
-      message: 'Internal Server Error', 
-      error: error.message 
-    });
-  }
-});
-
-// READ: Get all PI Monitoring entries
-app.get('/api/pi-monitoring', async (req, res) => {
-  try {
-    const piEntries = await PiMonitoring.find().sort({ createdAt: -1 });
-    res.json(piEntries);
-  } catch (error) {
-    console.error('Error fetching PI Monitoring entries:', error);
-    res.status(500).json({ 
-      message: 'Error retrieving PI Monitoring entries', 
-      error: error.message 
-    });
-  }
-});
-
-// UPDATE: Modify an existing PI Monitoring entry
-app.put('/api/pi-monitoring/:id', upload.fields([
-  { name: 'bankSlip', maxCount: 1 },
-  { name: 'acknowledgmentSupplier', maxCount: 1 },
-  { name: 'balanceBankSlip', maxCount: 1 },
-  { name: 'balanceAcknowledgmentSupplier', maxCount: 1 },
-  { name: 'photosUnloading', maxCount: 1 }
-]), async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    // Prepare update data
-    const updateData = { ...req.body };
-
-    // Handle file uploads
-    const fileFields = [
-      'bankSlip', 
-      'acknowledgmentSupplier', 
-      'balanceBankSlip', 
-      'balanceAcknowledgmentSupplier', 
-      'photosUnloading'
-    ];
-
-    fileFields.forEach(field => {
-      if (req.files && req.files[field]) {
-        updateData[field] = req.files[field][0].path;
-      }
-    });
-
-    // Remove fields that shouldn't be updated
-    delete updateData._id;
-    delete updateData.createdAt;
-    delete updateData.updatedAt;
-
-    // Convert numeric fields
-    const numericFields = ['totalAmount', 'amount', 'balanceAmount'];
-    numericFields.forEach(field => {
-      if (updateData[field]) {
-        updateData[field] = parseFloat(updateData[field]);
-      }
-    });
-
-    // Convert date fields
-    const dateFields = ['loadingDate', 'departureDate', 'arrivalDate', 'deliveryDate'];
-    dateFields.forEach(field => {
-      if (updateData[field]) {
-        updateData[field] = new Date(updateData[field]);
-      }
-    });
-
-    // Find and update the entry
-    const updatedEntry = await PiMonitoring.findByIdAndUpdate(
-      id, 
-      updateData, 
-      { 
-        new: true, 
-        runValidators: true,
-        timestamps: true // Ensure timestamps are updated
-      }
-    );
-
-    if (!updatedEntry) {
-      return res.status(404).json({ 
-        message: 'PI Monitoring entry not found' 
-      });
-    }
-    res.json({
-      message: 'PI Monitoring entry updated successfully',
-      data: updatedEntry
-    });
-  } catch (error) {
-    console.error('Error updating PI Monitoring entry:', error);
-    res.status(500).json({ 
-      message: 'Error updating PI Monitoring entry', 
-      error: error.message 
-    });
-  }
-});
-// DELETE: Remove a PI Monitoring entry
-app.delete('/api/pi-monitoring/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const deletedEntry = await PiMonitoring.findByIdAndDelete(id);
-
-    if (!deletedEntry) {
-      return res.status(404).json({ 
-        message: 'PI Monitoring entry not found' 
-      });
-    }
-
-    res.json({ 
-      message: 'PI Monitoring entry deleted successfully',
-      data: deletedEntry
-    });
-  } catch (error) {
-    console.error('Error deleting PI Monitoring entry:', error);
-    res.status(500).json({ 
-      message: 'Error deleting PI Monitoring entry', 
-      error: error.message 
-    });
-  }
-});
-// Serve uploaded files
-app.get('/uploads/:filename', (req, res) => {
-  const { filename } = req.params;
-  res.sendFile(path.join(__dirname, 'uploads', filename));
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    message: 'Something went wrong!',
-    error: err.message
-  });
-});
-requestSchema.statics.getNextReferenceNumber = async function() {
-  // If no requests exist, start from 1
-  const requestCount = await this.countDocuments();
-  if (requestCount === 0) {
-    return '0001';
-  }
-  // Find the last request and increment its reference number
-  const lastRequest = await this.findOne({}, {}, { sort: { 'referenceNumber': -1 } });
-  
-  if (!lastRequest) return '0001';
-  
-  const lastNumber = parseInt(lastRequest.referenceNumber);
-  const nextNumber = lastNumber + 1;
-  
-  return nextNumber.toString().padStart(4, '0');
-};
-
-// When creating a new request
-requestSchema.pre('save', async function(next) {
-  if (!this.referenceNumber) {
-    this.referenceNumber = await this.constructor.getNextReferenceNumber();
-  }
-  next();
-});
-// In your server.js or routes file
-app.get('/api/requests', async (req, res) => {
-  try {
-    // Fetch all requests
-    const requests = await Request.find({});
-
-    // Check if there are no requests
-    if (requests.length === 0) {
-      // If no requests, reset the reference number to 1
-      await Request.findOneAndUpdate(
-        {}, 
-        { $set: { lastReferenceNumber: 1 } },
-        { upsert: true, new: true }
-      );
-    }
-
-    res.status(200).json(requests);
-  } catch (error) {
-    console.error('Error fetching requests:', error);
-    res.status(500).json({ message: 'Error fetching requests', error: error.message });
-  }
-});
 
 
   app.listen(PORT, HOST, () => {
