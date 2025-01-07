@@ -408,138 +408,147 @@ requestSchema.statics.getNextReferenceNumber = async function () {
 };
 
 
-  const counterSchema = new mongoose.Schema({
-    name: { type: String, required: true, unique: true },
-    seq: { type: Number, default: 0 },
-  });
-  
-  const Counter = mongoose.model("Counter", counterSchema);
-  
+// Counter Schema - keep this at the top level
+const counterSchema = new mongoose.Schema({
+  name: { type: String, required: true, unique: true },
+  seq: { type: Number, default: 0 }
+});
 
-  async function getNextSequence(sequenceName) {
-    try {
-      const counter = await Counter.findOneAndUpdate(
-        { name: sequenceName },
-        { $inc: { seq: 1 } }, // Increment sequence by 1
-        { new: true, upsert: true } // Create if it doesn't exist
-      );
-      return counter.seq;
-    } catch (error) {
-      console.error("Error incrementing counter:", error);
-      throw error;
-    }
+const Counter = mongoose.model("Counter", counterSchema);
+
+  
+async function getNextSequence(sequenceName) {
+  try {
+    const counter = await Counter.findOneAndUpdate(
+      { name: sequenceName },
+      { $inc: { seq: 1 } }, // Increment the sequence by 1
+      { new: true, upsert: true } // Create the counter if it doesn't exist
+    );
+
+    return counter.seq.toString().padStart(4, "0"); // Return the sequence as a 4-digit number
+  } catch (error) {
+    console.error("Error getting next sequence:", error);
+    throw new Error("Failed to generate reference number");
   }
+}
+
+
+
+
+  
+
   
   
+app.post("/api/requests", async (req, res) => {
+  try {
+    const newReferenceNumber = await getNextSequence("requestCounter");
+    
+    const newRequest = new Request({
+      ...req.body,
+      referenceNumber: newReferenceNumber,
+      timestamp: new Date().toISOString()
+    });
+
+    await newRequest.save();
+    res.status(201).json(newRequest);
+  } catch (error) {
+    console.error("Error creating request:", error);
+    res.status(500).json({ message: "Error creating request" });
+  }
+});
   
-  
-  app.post("/api/requests", async (req, res) => {
-    try {
-      // Increment the counter and fetch the new sequence number
-      const newRefNumber = await getNextSequence("requestCounter");
-      const formattedRefNumber = String(newRefNumber).padStart(4, "0");
-  
-      // Create a new request
-      const newRequest = new Request({
-        ...req.body,
-        referenceNumber: formattedRefNumber,
-        timestamp: new Date().toISOString(),
-      });
-  
-      await newRequest.save();
-  
-      res.status(201).json(newRequest);
-    } catch (error) {
-      console.error("Error creating request:", error);
-      res.status(500).json({ message: "Error creating request" });
-    }
-  });
-  
-  
-  
-  
-  
-  const initializeCounter = async () => {
-    try {
-      // Check if the counter exists
-      const existingCounter = await Counter.findOne({ name: "requestCounter" });
-      if (!existingCounter) {
-        // Create a new counter if it doesn't exist
-        const newCounter = new Counter({ name: "requestCounter", seq: 0 });
-        await newCounter.save();
-        console.log("Counter initialized.");
-      }
-    } catch (error) {
-      console.error("Error initializing counter:", error);
-    }
-  };
-  
-  
-  // Call the function during server startup
-  initializeCounter();
-  
-  
-  // Call the initializeCounter function
-  initializeCounter();
-  
-  
-  // Call the initializeCounter function
-  initializeCounter();
-  
-  app.delete('/api/requests', async (req, res) => {
-    try {
-      // Delete all requests
-      await Request.deleteMany();
-  
-      // Reset the counter to 0
-      const updatedCounter = await Counter.findOneAndUpdate(
-        { name: 'requestCounter' },
-        { seq: 0 }, // Reset sequence
+async function initializeCounter() {
+  try {
+    // Check if there are existing requests in the database
+    const lastRequest = await Request.findOne({}, {}, { sort: { referenceNumber: -1 } });
+
+    if (lastRequest) {
+      // Set the counter to the last reference number if requests exist
+      const lastReferenceNumber = parseInt(lastRequest.referenceNumber, 10);
+      await Counter.findOneAndUpdate(
+        { name: "requestCounter" },
+        { seq: lastReferenceNumber },
         { new: true, upsert: true } // Create if it doesn't exist
       );
-  
-      console.log('Counter reset:', updatedCounter);
-  
-      res.status(200).json({ message: 'All requests and counter reset successfully' });
-    } catch (error) {
-      console.error('Error deleting requests and resetting counter:', error);
-      res.status(500).json({ error: 'Failed to delete requests or reset counter' });
+      console.log("Counter initialized to match last reference number:", lastReferenceNumber);
+    } else {
+      // No requests exist, reset the counter to 0
+      await Counter.findOneAndUpdate(
+        { name: "requestCounter" },
+        { seq: 0 },
+        { new: true, upsert: true }
+      );
+      console.log("Counter reset to 0 (no requests found).");
     }
-  });
-  
-  app.delete('/api/requests/:id', async (req, res) => {
-    try {
-      const requestId = req.params.id;
-  
-      // Delete the request
-      const deletedRequest = await Request.findByIdAndDelete(requestId);
-      if (!deletedRequest) {
-        return res.status(404).json({ message: 'Request not found' });
-      }
-  
-      // Reassign reference numbers
-      const requests = await Request.find().sort({ timestamp: 1 }); // Sort by creation time
-      for (let i = 0; i < requests.length; i++) {
-        requests[i].referenceNumber = (i + 1).toString().padStart(4, '0'); // Reassign in sequential order
-        await requests[i].save();
-      }
-  
-      res.json({ message: 'Request deleted and reference numbers updated successfully' });
-    } catch (error) {
-      console.error('Error deleting request:', error);
-      res.status(500).json({ message: 'Error deleting request' });
-    }
-  });
+  } catch (error) {
+    console.error("Error initializing counter:", error);
+  }
+}
+
+
+
+// Call during server startup
+initializeCounter();
+
 
   
+app.delete('/api/requests', async (req, res) => {
+  try {
+    // Delete all requests
+    await Request.deleteMany();
+
+    // Reset the counter to 0
+    await Counter.findOneAndUpdate(
+      { name: 'requestCounter' },
+      { seq: 0 }, // Reset sequence
+      { new: true, upsert: true } // Create if it doesn't exist
+    );
+
+    res.status(200).json({ message: 'All requests and counter reset successfully' });
+  } catch (error) {
+    console.error('Error deleting requests and resetting counter:', error);
+    res.status(500).json({ error: 'Failed to delete requests or reset counter' });
+  }
+});
+
+
 
   
-  
-  
-  
-  
-  
-  
+app.delete('/api/requests/:id', async (req, res) => {
+  try {
+    // Delete the specific request
+    const deletedRequest = await Request.findByIdAndDelete(req.params.id);
+    if (!deletedRequest) {
+      return res.status(404).json({ message: "Request not found" });
+    }
+
+    // Get all remaining requests sorted by timestamp
+    const remainingRequests = await Request.find().sort({ timestamp: 1 });
+
+    // Reassign reference numbers sequentially
+    for (let i = 0; i < remainingRequests.length; i++) {
+      const newRefNumber = (i + 1).toString().padStart(4, '0');
+      await Request.findByIdAndUpdate(remainingRequests[i]._id, {
+        referenceNumber: newRefNumber,
+      });
+    }
+
+    // Update the Counter to reflect the current number of requests
+    await Counter.findOneAndUpdate(
+      { name: 'requestCounter' },
+      { seq: remainingRequests.length },
+      { new: true }
+    );
+
+    res.json({ message: 'Request deleted and reference numbers updated successfully' });
+  } catch (error) {
+    console.error('Error deleting request:', error);
+    res.status(500).json({ message: 'Error deleting request' });
+  }
+});
+
+
+
 
   // PUT request to update an existing request
   app.put("/api/requests/:id", async (req, res) => {
@@ -574,22 +583,56 @@ requestSchema.statics.getNextReferenceNumber = async function () {
     }
   });
 
-  // DELETE a request by ID
-  app.delete("/api/requests/:id", async (req, res) => {
+  app.post("/api/reset-counter", async (req, res) => {
     try {
-      const requestId = req.params.id;
-      const deletedRequest = await Request.findByIdAndDelete(requestId);
-
-      if (!deletedRequest) {
-        return res.status(404).json({ message: "Request not found" });
-      }
-
-      res.json({ message: "Request deleted successfully" });
+      await Counter.findOneAndUpdate(
+        { name: "requestCounter" },
+        { seq: 0 },
+        { new: true }
+      );
+      res.json({ message: "Counter reset successfully" });
     } catch (error) {
-      console.error("Error deleting request:", error);
-      res.status(500).json({ message: "Error deleting request" });
+      console.error("Error resetting counter:", error);
+      res.status(500).json({ message: "Error resetting counter" });
     }
   });
+
+// Delete request endpoint with counter maintenance
+app.delete("/api/requests/:id", async (req, res) => {
+  try {
+    const deletedRequest = await Request.findByIdAndDelete(req.params.id);
+    if (!deletedRequest) {
+      return res.status(404).json({ message: "Request not found" });
+    }
+
+    // Get all remaining requests sorted by timestamp
+    const remainingRequests = await Request.find().sort({ timestamp: 1 });
+    
+    // Update reference numbers for remaining requests
+    for (let i = 0; i < remainingRequests.length; i++) {
+      const newRefNumber = (i + 1).toString().padStart(4, "0");
+      await Request.findByIdAndUpdate(remainingRequests[i]._id, {
+        referenceNumber: newRefNumber
+      });
+    }
+
+    // Update counter to match the number of remaining requests
+    await Counter.findOneAndUpdate(
+      { name: "requestCounter" },
+      { seq: remainingRequests.length },
+      { new: true }
+    );
+
+    res.json({ message: "Request deleted and sequences updated successfully" });
+  } catch (error) {
+    console.error("Error deleting request:", error);
+    res.status(500).json({ message: "Error deleting request" });
+  }
+});
+
+// Make sure to call initializeCounter when your server starts
+initializeCounter();
+
 
   // GET all team members
   app.get("/api/teamMembers", async (req, res) => {
@@ -808,48 +851,26 @@ requestSchema.statics.getNextReferenceNumber = async function () {
     });
   });
 
- app.post('/api/requests', async (req, res) => {
-  try {
-    // Compute the next reference number dynamically
-    const requestCount = await Request.countDocuments();
-    const newReferenceNumber = (requestCount + 1).toString().padStart(4, '0');
-
-    const newRequest = new Request({
-      ...req.body,
-      referenceNumber: newReferenceNumber,
-      timestamp: new Date().toISOString(),
-    });
-
-    await newRequest.save();
-
-    res.status(201).json(newRequest);
-  } catch (error) {
-    console.error('Error creating request:', error);
-    res.status(500).json({ message: 'Error creating request' });
-  }
-});
-
-
-const recalculateReferenceNumbers = async () => {
-  try {
-    const requests = await Request.find().sort({ timestamp: 1 }); // Sort by creation time
-    for (let i = 0; i < requests.length; i++) {
-      requests[i].referenceNumber = (i + 1).toString().padStart(4, '0');
-      await requests[i].save();
-    }
-    console.log('Reference numbers recalculated successfully.');
-  } catch (error) {
-    console.error('Error recalculating reference numbers:', error);
-  }
-};
-
-// Call this during server startup
-recalculateReferenceNumbers();
-
-
-
-
+  app.post('/api/requests', async (req, res) => {
+    try {
+      const newReferenceNumber = await getNextSequence('requestCounter');
   
+      const newRequest = new Request({
+        ...req.body,
+        referenceNumber: newReferenceNumber,
+        timestamp: new Date().toISOString(),
+      });
+  
+      await newRequest.save();
+  
+      res.status(201).json(newRequest);
+    } catch (error) {
+      console.error('Error creating request:', error);
+      res.status(500).json({ message: 'Error creating request' });
+    }
+  });
+  
+
   // New route to handle profile picture upload
   app.post('/api/uploadProfile', upload.single('profileImage'), async (req, res) => {
     if (!req.file) {
@@ -895,4 +916,5 @@ recalculateReferenceNumbers();
 
   app.listen(PORT, HOST, () => {
     console.log(`Server running on http://${HOST}:${PORT}`);
+    initializeCounter(); // Initialize the counter on server startup
 });
