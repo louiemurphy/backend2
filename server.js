@@ -25,7 +25,7 @@
 
 
   app.use(cors({
-    origin: ['http://localhost:3000', 'http://193.203.162.228', 'http://193.203.162.228:8080'], // Allowed origins
+    origin: ['http://localhost:3000', 'http://193.203.162.228'], // Allowed origins
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Allowed methods
     allowedHeaders: ['Content-Type', 'Authorization'], // Allowed headers
     credentials: true, // Allow credentials
