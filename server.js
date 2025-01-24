@@ -25,11 +25,18 @@
 
 
   app.use(cors({
-    origin: ['http://localhost:3000', 'http://193.203.162.228', 'http://193.203.162.228:8080'], // Allowed origins
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Allowed methods
-    allowedHeaders: ['Content-Type', 'Authorization'], // Allowed headers
-    credentials: true, // Allow credentials
-  }));
+  origin: (origin, callback) => {
+    const allowedOrigins = ['http://localhost:3000', 'http://193.203.162.228', 'http://193.203.162.228:8080'];
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true); // Allow the request
+    } else {
+      callback(new Error('Not allowed by CORS')); // Block the request
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+}));
   
   
   app.options('*', cors());
